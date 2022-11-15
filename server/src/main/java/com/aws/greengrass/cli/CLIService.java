@@ -149,8 +149,6 @@ public class CLIService extends PluginService {
                 -> cliEventStreamAgent.getListLocalDeploymentsHandler(context, this.getRuntimeConfig()));
         greengrassCoreIPCService.setCreateDebugPasswordHandler((context)
                 -> cliEventStreamAgent.getCreateDebugPasswordHandler(context, config.getRoot()));
-        greengrassCoreIPCService.setPublishToTopicHandler((context)
-                -> cliEventStreamAgent.getPublishToTopicHandler(context));
     }
 
     @Override
@@ -276,15 +274,14 @@ public class CLIService extends PluginService {
         FileSystemPermission filePermission = null;
         try {
             filePermission = FileSystemPermission.builder().ownerUser(
-                            Platform.getInstance().lookupCurrentUser().getPrincipalName())
+                    Platform.getInstance().lookupCurrentUser().getPrincipalName())
                     .ownerGroup(group.getPrincipalName()).ownerRead(true).ownerWrite(true).groupRead(true).build();
             Platform.getInstance().setPermissions(filePermission, ipcInfoFile);
         } catch (IOException e) {
             logger.atError().kv("file", ipcInfoFile).kv("permission", filePermission)
                     .kv("groupOwner", group.getPrincipalName()).log("Failed to set up posix file permissions and"
-                            + " group owner.  Admin may have to manually update the file "
-                            + "permission so that CLI authentication "
-                            + "works as intended", e);
+                    + " group owner.  Admin may have to manually update the file permission so that CLI authentication "
+                    + "works as intended", e);
         }
     }
 

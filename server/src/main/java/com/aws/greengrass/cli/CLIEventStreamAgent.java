@@ -37,11 +37,8 @@ import software.amazon.awssdk.aws.greengrass.GeneratedAbstractGetComponentDetail
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractGetLocalDeploymentStatusOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractListComponentsOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractListLocalDeploymentsOperationHandler;
-import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPublishToTopicOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractRestartComponentOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractStopComponentOperationHandler;
-import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClientV2;
-import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordResponse;
@@ -60,9 +57,6 @@ import software.amazon.awssdk.aws.greengrass.model.ListComponentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsRequest;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.LocalDeployment;
-import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.RequestStatus;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
@@ -74,7 +68,6 @@ import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -109,7 +102,6 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceMode
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.GET_LOCAL_DEPLOYMENT_STATUS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.LIST_COMPONENTS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.LIST_LOCAL_DEPLOYMENTS;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.RESTART_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.STOP_COMPONENT;
 
@@ -154,10 +146,6 @@ public class CLIEventStreamAgent {
 
     public StopComponentHandler getStopComponentsHandler(OperationContinuationHandlerContext context) {
         return new StopComponentHandler(context);
-    }
-
-    public PublishToTopicHandler getPublishToTopicHandler(OperationContinuationHandlerContext context) {
-        return new PublishToTopicHandler(context);
     }
 
     public CreateLocalDeploymentHandler getCreateLocalDeploymentHandler(OperationContinuationHandlerContext context,
@@ -427,54 +415,6 @@ public class CLIEventStreamAgent {
         }
     }
 
-
-    @SuppressFBWarnings("SIC_INNER_SHOULD_BE_STATIC")
-    class PublishToTopicHandler extends GeneratedAbstractPublishToTopicOperationHandler {
-
-        private final String componentName;
-
-        public PublishToTopicHandler(OperationContinuationHandlerContext context) {
-            super(context);
-            this.componentName = context.getAuthenticationData().getIdentityLabel();
-        }
-
-        @Override
-        protected void onStreamClosed() {
-
-        }
-
-        @Override
-        public PublishToTopicResponse handleRequest(PublishToTopicRequest request) {
-            return translateExceptions(() -> {
-//              authorizeRequest(Permission.builder()
-//                        .principal(componentName)
-//                        .resource("*")
-//                        .operation("*")
-//                        .build());
-                PublishToTopicResponse response = new PublishToTopicResponse();
-                try (GreengrassCoreIPCClientV2 ipcClient = GreengrassCoreIPCClientV2.builder().build()) {
-                    response = ipcClient.publishToTopic(request);
-                    System.out.println("Successfully published to topic: " + request.getTopic());
-                } catch (Exception e) {
-                    if (e.getCause() instanceof UnauthorizedError) {
-                        System.err.println("Unauthorized error while publishing to topic: " + request.getTopic());
-                    } else {
-                        System.err.println("Exception occurred when using IPC.");
-                    }
-                    e.printStackTrace();
-                }
-
-                return response;
-
-            });
-        }
-
-        @Override
-        public void handleStreamEvent(EventStreamJsonMessage eventStreamJsonMessage) {
-
-        }
-    }
-
     class CreateLocalDeploymentHandler extends GeneratedAbstractCreateLocalDeploymentOperationHandler {
 
         private final Topics cliServiceConfig;
@@ -553,8 +493,6 @@ public class CLIEventStreamAgent {
                     localDeploymentDetails.setDeploymentId(deploymentId);
                     localDeploymentDetails.setDeploymentType(Deployment.DeploymentType.LOCAL);
                     localDeploymentDetails.setStatus(DeploymentStatus.QUEUED);
-                    cleanUpQueuedDeployments(cliServiceConfig);
-
                     persistLocalDeployment(cliServiceConfig, localDeploymentDetails.convertToMapOfObject());
                     if (deploymentQueue.offer(deployment)) {
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -571,7 +509,6 @@ public class CLIEventStreamAgent {
                 }
             });
         }
-
 
         @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
@@ -604,7 +541,6 @@ public class CLIEventStreamAgent {
                         .resource(request.getDeploymentId())
                         .operation(GET_LOCAL_DEPLOYMENT_STATUS)
                         .build());
-                cleanUpQueuedDeployments(cliServiceConfig);
                 Topics localDeployments = cliServiceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
                 if (localDeployments == null || localDeployments.findTopics(request.getDeploymentId()) == null) {
                     ResourceNotFoundError rnf = new ResourceNotFoundError();
@@ -666,7 +602,6 @@ public class CLIEventStreamAgent {
                         .operation(LIST_LOCAL_DEPLOYMENTS)
                         .build());
                 List<LocalDeployment> persistedDeployments = new ArrayList<>();
-                cleanUpQueuedDeployments(cliServiceConfig);
                 Topics localDeployments = cliServiceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
                 if (localDeployments != null) {
                     localDeployments.forEach(topic -> {
@@ -678,7 +613,6 @@ public class CLIEventStreamAgent {
                         persistedDeployments.add(localDeployment);
                     });
                 }
-
                 ListLocalDeploymentsResponse response = new ListLocalDeploymentsResponse();
                 response.setLocalDeployments(persistedDeployments);
                 return response;
@@ -759,41 +693,6 @@ public class CLIEventStreamAgent {
             }
         }
         return null;
-    }
-
-    private void cleanUpQueuedDeployments(Topics cliServiceConfig) {
-        List<String> deploymentIdToRemoveList = new ArrayList<>();
-
-        if (deploymentQueue.isEmpty()) {
-            Topics localDeployments = cliServiceConfig.findTopics(PERSISTENT_LOCAL_DEPLOYMENTS);
-
-            // Find deploymentIds that status are queued
-            if (localDeployments != null) {
-                localDeployments.forEach(topic -> {
-                    if (topic instanceof Topics) {
-                        Topics topics = (Topics) topic;
-                        String tmpDeploymentId = topics.getName();
-                        DeploymentStatus tmpDeploymentStatus = deploymentStatusFromString(
-                                Coerce.toString(topics.find(DEPLOYMENT_STATUS_KEY_NAME)));
-
-                        if (DeploymentStatus.QUEUED == tmpDeploymentStatus) {
-                            deploymentIdToRemoveList.add(tmpDeploymentId);
-                        }
-                    }
-                });
-            }
-
-            // Find the topics to remove
-            if (deploymentIdToRemoveList != null && !deploymentIdToRemoveList.isEmpty()) {
-                for (String tmpDeploymentIdToRemove : deploymentIdToRemoveList) {
-                    Topics tmpTopicsToRemove = localDeployments.findTopics(tmpDeploymentIdToRemove);
-
-                    if (tmpTopicsToRemove != null) {
-                        tmpTopicsToRemove.remove();
-                    }
-                }
-            }
-        }
     }
 
     @Data
