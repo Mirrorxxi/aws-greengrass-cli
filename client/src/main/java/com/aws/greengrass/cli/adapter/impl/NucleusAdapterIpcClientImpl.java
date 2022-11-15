@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.aws.greengrass.GetLocalDeploymentStatusResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordResponse;
@@ -23,6 +24,9 @@ import software.amazon.awssdk.aws.greengrass.model.ListComponentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsRequest;
 import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.LocalDeployment;
+import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
+import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
+import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.StopComponentRequest;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
@@ -34,6 +38,7 @@ import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -209,6 +214,29 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
         }
     }
 
+    @Override
+    public PublishToTopicResponse publishToTopic(String topicName, String message) {
+        try {
+            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+            PublishMessage publishMessage = new PublishMessage();
+            BinaryMessage binaryMessage = new BinaryMessage();
+            binaryMessage.setMessage(message.getBytes(StandardCharsets.UTF_8));
+            publishMessage.setBinaryMessage(binaryMessage);
+            publishToTopicRequest.setPublishMessage(publishMessage);
+            publishToTopicRequest.setTopic(topicName);
+
+            PublishToTopicResponse publishToTopicResponse = getIpcClient().publishToTopic(
+                            publishToTopicRequest, Optional.empty()).getResponse()
+                    .get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
+            return publishToTopicResponse;
+        } catch (ExecutionException | TimeoutException | InterruptedException e) {
+            //TODO: update when the sdk method signature includes exceptions
+            throw new RuntimeException(e);
+        } finally {
+            close();
+        }
+    }
+
     private String getGgcRoot() {
         // check if root path was passed as an argument to the command line, else fall back to env variable
         // if root path not found then throw exception
@@ -263,7 +291,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
     }
 
     private EventStreamRPCConnection connectToGGCOverEventStreamIPC(SocketOptions socketOptions, String authToken,
-                                                                          String ipcServerSocketPath) {
+                                                                    String ipcServerSocketPath) {
         elGroup = new EventLoopGroup(1);
         clientBootstrap = new ClientBootstrap(elGroup, null);
         final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
