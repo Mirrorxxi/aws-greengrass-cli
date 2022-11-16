@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.aws.greengrass.GetLocalDeploymentStatusResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.SubscribeToTopicResponseHandler;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordRequest;
@@ -29,12 +30,17 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.StopComponentRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
+import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
+import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
+import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
+import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
 import java.io.IOException;
@@ -171,7 +177,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
     }
 
     @Override
-    public String createLocalDeployment(CreateLocalDeploymentRequest createLocalDeploymentRequest)  {
+    public String createLocalDeployment(CreateLocalDeploymentRequest createLocalDeploymentRequest) {
         try {
             CreateLocalDeploymentResponse createLocalDeploymentResponse =
                     getIpcClient().createLocalDeployment(createLocalDeploymentRequest, Optional.empty()).getResponse()
@@ -235,6 +241,95 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
         } finally {
             close();
         }
+    }
+
+    @Override
+    public void subscribeToTopic(String topic) throws IOException {
+        try {
+            StreamResponseHandler<SubscriptionResponseMessage> streamResponseHandler =
+                    new SubscriptionResponseHandler(topic);
+            SubscribeToTopicResponseHandler responseHandler =
+                    subscribeToTopic(getIpcClient(), topic, streamResponseHandler);
+            CompletableFuture<SubscribeToTopicResponse> futureResponse =
+                    responseHandler.getResponse();
+            try {
+                futureResponse.get(10, TimeUnit.SECONDS);
+                System.out.println("Successfully subscribed to topic: " + topic);
+            } catch (TimeoutException e) {
+                System.err.println("Timeout occurred while subscribing to topic: " + topic);
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof UnauthorizedError) {
+                    System.err.println("Unauthorized error while publishing to topic: " + topic);
+                } else {
+                    throw e;
+                }
+            }
+
+            // Keep the main thread alive, or the process will exit.
+            try {
+                while (true) {
+                    Thread.sleep(10000);
+                }
+            } catch (InterruptedException e) {
+                System.out.println("Subscribe interrupted.");
+            }
+
+            // To stop subscribing, close the stream.
+            responseHandler.closeStream();
+        } catch (InterruptedException e) {
+            System.out.println("IPC interrupted.");
+        } catch (ExecutionException e) {
+            System.err.println("Exception occurred when using IPC.");
+            e.printStackTrace();
+        }
+    }
+
+    private SubscribeToTopicResponseHandler subscribeToTopic(GreengrassCoreIPCClient greengrassCoreIPCClient
+            , String topic, StreamResponseHandler<SubscriptionResponseMessage> streamResponseHandler) {
+        SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
+        subscribeToTopicRequest.setTopic(topic);
+        return greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
+                Optional.of(streamResponseHandler));
+    }
+
+
+    public static class SubscriptionResponseHandler implements StreamResponseHandler<SubscriptionResponseMessage> {
+
+        private final String topic;
+
+        public SubscriptionResponseHandler(String topic) {
+            this.topic = topic;
+        }
+
+        @Override
+        public void onStreamEvent(SubscriptionResponseMessage subscriptionResponseMessage) {
+            try {
+                String message =
+                        new String(subscriptionResponseMessage.getBinaryMessage().getMessage(),
+                                StandardCharsets.UTF_8);
+                System.out.printf("Received new message on topic %s: %s%n", this.topic, message);
+            } catch (Exception e) {
+                System.err.println("Exception occurred while processing subscription response " +
+                        "message.");
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public boolean onStreamError(Throwable error) {
+            System.err.println("Received a stream error.");
+            error.printStackTrace();
+            return false; // Return true to close stream, false to keep stream open.
+        }
+
+        @Override
+        public void onStreamClosed() {
+            System.out.println("Subscribe to topic stream closed.");
+        }
+    }
+
+    public static void onStreamClosed() {
+        System.out.println("Subscribe to topic stream closed.");
     }
 
     private String getGgcRoot() {
