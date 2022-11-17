@@ -37,7 +37,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 
@@ -157,8 +159,8 @@ public class CLIService extends PluginService {
             Path clientArtifact = kernel.getNucleusPaths().unarchiveArtifactPath(new ComponentIdentifier(CLI_SERVICE,
                     new Semver(Coerce.toString(getConfig().find(VERSION_CONFIG_KEY)))), CLI_CLIENT_ARTIFACT);
             if (!Files.exists(clientArtifact)) {
-                logger.atWarn().kv("path", clientArtifact)
-                        .log("Unable to locate CLI binary. Make sure CLI component is properly deployed");
+
+                ;
                 return;
             }
             Path unpackDir = clientArtifact.resolve(CLI_CLIENT_DIRECTORY);
@@ -171,6 +173,25 @@ public class CLIService extends PluginService {
                 Files.createSymbolicLink(link, binary);
                 logger.atInfo().kv("binary", binary).kv("link", link).log("Set up symlink to CLI binary");
             }
+
+            // authorize pub/sub for the cli
+            String defaultClientId =
+                    USER_CLIENT_ID_PREFIX + Platform.getInstance().lookupCurrentUser().getPrincipalIdentifier();
+            String serviceName = getAuthClientIdentifier(defaultClientId);
+            List<String> list = new ArrayList<>();
+            list.add("*");
+            String policyName = "aws.greengrass.Cli:pubsub:10";
+            config.getRoot().lookup(SERVICES_NAMESPACE_TOPIC,
+                    serviceName, "configuration", "accessControl", "aws.greengrass.ipc.pubsub",
+                    policyName, "resources").dflt(list);
+            config.getRoot().lookup(SERVICES_NAMESPACE_TOPIC,
+                    serviceName, "configuration", "accessControl", "aws.greengrass.ipc.pubsub",
+                    policyName, "operations").dflt(list);
+
+            config.getRoot().lookup(SERVICES_NAMESPACE_TOPIC,
+                    serviceName, "configuration", "accessControl", "aws.greengrass.ipc.pubsub",
+                    policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
+
         } catch (IOException | SemverException e) {
             logger.atError().log("Failed to set up symlink to CLI binary", e);
         }
