@@ -161,8 +161,8 @@ public class CLIService extends PluginService {
             Path clientArtifact = kernel.getNucleusPaths().unarchiveArtifactPath(new ComponentIdentifier(CLI_SERVICE,
                     new Semver(Coerce.toString(getConfig().find(VERSION_CONFIG_KEY)))), CLI_CLIENT_ARTIFACT);
             if (!Files.exists(clientArtifact)) {
-
-                ;
+                logger.atWarn().kv("path", clientArtifact)
+                        .log("Unable to locate CLI binary. Make sure CLI component is properly deployed");
                 return;
             }
             Path unpackDir = clientArtifact.resolve(CLI_CLIENT_DIRECTORY);
@@ -177,34 +177,28 @@ public class CLIService extends PluginService {
             }
 
             // authorize pub/sub for the cli
-            String defaultClientId =
-                    USER_CLIENT_ID_PREFIX + Platform.getInstance().lookupCurrentUser().getPrincipalIdentifier();
-            String serviceName = getAuthClientIdentifier(defaultClientId);
-            List<String> list = new ArrayList<>();
-            list.add("*");
-            String policyName = "aws.greengrass.Cli:pubsub:10";
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    PUB_SUB_SERVICE_NAME,
-                    policyName, "resources").dflt(list);
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    PUB_SUB_SERVICE_NAME, policyName, "operations").dflt(list);
-
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    PUB_SUB_SERVICE_NAME, policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
-
-            // mqtt message doAuth
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    MQTT_PROXY_SERVICE_NAME,
-                    policyName, "resources").dflt(list);
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    MQTT_PROXY_SERVICE_NAME, policyName, "operations").dflt(list);
-
-            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
-                    MQTT_PROXY_SERVICE_NAME, policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
-
+            authorizePubSubPermission(PUB_SUB_SERVICE_NAME);
+            authorizePubSubPermission(MQTT_PROXY_SERVICE_NAME);
         } catch (IOException | SemverException e) {
             logger.atError().log("Failed to set up symlink to CLI binary", e);
         }
+    }
+
+    private void authorizePubSubPermission(String serviceIdentifier) throws IOException {
+        String defaultClientId =
+                USER_CLIENT_ID_PREFIX + Platform.getInstance().lookupCurrentUser().getPrincipalIdentifier();
+        String serviceName = getAuthClientIdentifier(defaultClientId);
+        List<String> list = new ArrayList<>();
+        list.add("*");
+        String policyName = "aws.greengrass.Cli:pubsub:10";
+        config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                serviceIdentifier,
+                policyName, "resources").dflt(list);
+        config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                serviceIdentifier, policyName, "operations").dflt(list);
+
+        config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                serviceIdentifier, policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
     }
 
     private void setCliClientPermission(Path clientDir) {
