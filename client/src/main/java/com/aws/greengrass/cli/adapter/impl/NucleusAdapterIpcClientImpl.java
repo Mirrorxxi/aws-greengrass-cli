@@ -281,7 +281,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
             CompletableFuture<SubscribeToTopicResponse> futureResponse =
                     responseHandler.getResponse();
             try {
-                futureResponse.get(10, TimeUnit.SECONDS);
+                futureResponse.get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
                 System.out.println("Successfully subscribed to topic: " + topic);
             } catch (TimeoutException e) {
                 System.err.println("Timeout occurred while subscribing to topic: " + topic);
@@ -309,6 +309,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
         } catch (ExecutionException e) {
             System.err.println("Exception occurred when using IPC.");
             e.printStackTrace();
+            System.exit(1);
         }
     }
 
@@ -323,7 +324,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
                     Optional.of(streamResponseHandler));
             CompletableFuture<SubscribeToIoTCoreResponse> futureResponse = responseHandler.getResponse();
             try {
-                futureResponse.get(10, TimeUnit.SECONDS);
+                futureResponse.get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
                 System.out.println("Successfully subscribed to topic: " + topicName);
             } catch (TimeoutException e) {
                 System.err.println("Timeout occurred while subscribing to topic: " + topicName);
