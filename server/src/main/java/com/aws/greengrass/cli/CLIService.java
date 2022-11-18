@@ -47,6 +47,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURA
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 
 @ImplementsService(name = CLIService.CLI_SERVICE, autostart = true)
@@ -190,6 +191,16 @@ public class CLIService extends PluginService {
 
             config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
                     PUB_SUB_SERVICE_NAME, policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
+
+            // mqtt message doAuth
+            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                    MQTT_PROXY_SERVICE_NAME,
+                    policyName, "resources").dflt(list);
+            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                    MQTT_PROXY_SERVICE_NAME, policyName, "operations").dflt(list);
+
+            config.parent.lookup(serviceName, CONFIGURATION_CONFIG_KEY, ACCESS_CONTROL_NAMESPACE_TOPIC,
+                    MQTT_PROXY_SERVICE_NAME, policyName, "policyDescription").dflt("Allows access to publish/subscribe topic.");
 
         } catch (IOException | SemverException e) {
             logger.atError().log("Failed to set up symlink to CLI binary", e);

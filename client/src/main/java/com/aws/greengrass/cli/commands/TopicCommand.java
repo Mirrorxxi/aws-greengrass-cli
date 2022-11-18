@@ -26,19 +26,34 @@ public class TopicCommand extends BaseCommand {
             description = "Publish message to the specific topic ",
             mixinStandardHelpOptions = true,
             versionProvider = com.aws.greengrass.cli.module.VersionProvider.class)
-    public void pub(@CommandLine.Option(names = {"-tn", "--topicname"}, paramLabel = "The name of the topic.",
-            descriptionKey = "topicname", required = true) String topicName,
-                    @CommandLine.Option(names = {"-msg", "--message"}, paramLabel = "The message that is published.",
-                            descriptionKey = "topicname", required = true) String message) {
-        nucleusAdapterIpc.publishToTopic(topicName, message);
+    public void pub(@CommandLine.Option(names = {"-tn", "--topicname"}, paramLabel = "The name of the topic.", required = true) String topicName,
+                    @CommandLine.Option(names = {"-msg", "--message"}, paramLabel = "The message that is published.", required = true) String message,
+                    @CommandLine.Option(names = {"-tp", "--messagetype"}, paramLabel = "The type of the message(local/mqtt).", required = true) String messageType,
+                    @CommandLine.Option(names = {"-qos", "--qos"}, paramLabel = "The MQTT QoS to use.", defaultValue = "0") String qos) {
+        if (messageType.equals("local")) {
+            nucleusAdapterIpc.publishToTopic(topicName, message);
+        } else if (messageType.equals("mqtt")) {
+            nucleusAdapterIpc.publishToIoTCore(topicName, message, qos);
+        } else {
+            System.err.println(spec.commandLine().getColorScheme()
+                    .errorText("The type of message error occurred, it can only be local or mqtt"));
+        }
     }
 
     @CommandLine.Command(name = "sub",
             description = "Subscribe the specific topic ",
             mixinStandardHelpOptions = true,
             versionProvider = com.aws.greengrass.cli.module.VersionProvider.class)
-    public void sub(@CommandLine.Option(names = {"-tn", "--topicname"}, paramLabel = "The name of the topic.",
-            descriptionKey = "topicname", required = true) String topicName) throws IOException {
-        nucleusAdapterIpc.subscribeToTopic(topicName);
+    public void sub(@CommandLine.Option(names = {"-tn", "--topicname"}, paramLabel = "The name of the topic.", required = true) String topicName,
+                    @CommandLine.Option(names = {"-tp", "--messagetype"}, paramLabel = "The type of the message(local/mqtt).", required = true) String messageType,
+                    @CommandLine.Option(names = {"-qos", "--qos"}, paramLabel = "The MQTT QoS to use.", defaultValue = "0") String qos) throws IOException {
+        if (messageType.equals("local")) {
+            nucleusAdapterIpc.subscribeToTopic(topicName);
+        } else if (messageType.equals("mqtt")) {
+            nucleusAdapterIpc.subscribeToIoTCore(topicName, qos);
+        } else {
+            System.err.println(spec.commandLine().getColorScheme()
+                    .errorText("The type of message error occurred, it can only be local or mqtt"));
+        }
     }
 }
