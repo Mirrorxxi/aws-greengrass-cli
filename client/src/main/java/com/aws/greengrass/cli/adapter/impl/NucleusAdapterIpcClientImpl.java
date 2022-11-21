@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.aws.greengrass.GetLocalDeploymentStatusResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
-import software.amazon.awssdk.aws.greengrass.PublishToIoTCoreResponseHandler;
 import software.amazon.awssdk.aws.greengrass.SubscribeToIoTCoreResponseHandler;
 import software.amazon.awssdk.aws.greengrass.SubscribeToTopicResponseHandler;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
@@ -30,9 +29,7 @@ import software.amazon.awssdk.aws.greengrass.model.ListLocalDeploymentsResponse;
 import software.amazon.awssdk.aws.greengrass.model.LocalDeployment;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
-import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.StopComponentRequest;
@@ -185,7 +182,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
     }
 
     @Override
-    public String createLocalDeployment(CreateLocalDeploymentRequest createLocalDeploymentRequest) {
+    public String createLocalDeployment(CreateLocalDeploymentRequest createLocalDeploymentRequest)  {
         try {
             CreateLocalDeploymentResponse createLocalDeploymentResponse =
                     getIpcClient().createLocalDeployment(createLocalDeploymentRequest, Optional.empty()).getResponse()
@@ -229,7 +226,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
     }
 
     @Override
-    public PublishToTopicResponse publishToTopic(String topicName, String message) {
+    public void publishToTopic(String topicName, String message) {
         try {
             PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
             PublishMessage publishMessage = new PublishMessage();
@@ -238,34 +235,21 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
             publishMessage.setBinaryMessage(binaryMessage);
             publishToTopicRequest.setPublishMessage(publishMessage);
             publishToTopicRequest.setTopic(topicName);
-
-            PublishToTopicResponse publishToTopicResponse = getIpcClient().publishToTopic(
-                            publishToTopicRequest, Optional.empty()).getResponse()
-                    .get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
-            return publishToTopicResponse;
-        } catch (ExecutionException | TimeoutException | InterruptedException e) {
-            //TODO: update when the sdk method signature includes exceptions
-            throw new RuntimeException(e);
+            getIpcClient().publishToTopic(publishToTopicRequest, Optional.empty());
         } finally {
             close();
         }
     }
 
     @Override
-    public PublishToIoTCoreResponse publishToIoTCore(String topicName, String message, String qos) {
+    public void publishToIoTCore(String topicName, String message, String qos) {
         try {
             QOS qos1 = QOS.get(qos);
             PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
             publishToIoTCoreRequest.setTopicName(topicName);
             publishToIoTCoreRequest.setPayload(message.getBytes(StandardCharsets.UTF_8));
             publishToIoTCoreRequest.setQos(qos1);
-            PublishToIoTCoreResponseHandler responseHandler =
-                    getIpcClient().publishToIoTCore(publishToIoTCoreRequest, Optional.empty());
-            PublishToIoTCoreResponse publishToIoTCoreResponse = responseHandler.getResponse().get(DEFAULT_TIMEOUT_IN_SEC, TimeUnit.SECONDS);
-            return publishToIoTCoreResponse;
-        } catch (ExecutionException | TimeoutException | InterruptedException e) {
-            //TODO: update when the sdk method signature includes exceptions
-            throw new RuntimeException(e);
+            getIpcClient().publishToIoTCore(publishToIoTCoreRequest, Optional.empty());
         } finally {
             close();
         }
@@ -487,7 +471,7 @@ public class NucleusAdapterIpcClientImpl implements NucleusAdapterIpc {
     }
 
     private EventStreamRPCConnection connectToGGCOverEventStreamIPC(SocketOptions socketOptions, String authToken,
-                                                                    String ipcServerSocketPath) {
+                                                                          String ipcServerSocketPath) {
         elGroup = new EventLoopGroup(1);
         clientBootstrap = new ClientBootstrap(elGroup, null);
         final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,

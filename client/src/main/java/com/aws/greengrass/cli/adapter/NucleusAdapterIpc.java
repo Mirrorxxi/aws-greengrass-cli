@@ -10,8 +10,6 @@ import software.amazon.awssdk.aws.greengrass.model.ComponentDetails;
 import software.amazon.awssdk.aws.greengrass.model.CreateDebugPasswordResponse;
 import software.amazon.awssdk.aws.greengrass.model.CreateLocalDeploymentRequest;
 import software.amazon.awssdk.aws.greengrass.model.LocalDeployment;
-import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreResponse;
-import software.amazon.awssdk.aws.greengrass.model.PublishToTopicResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +32,9 @@ public interface NucleusAdapterIpc {
 
     CreateDebugPasswordResponse createDebugPassword();
 
-    PublishToTopicResponse publishToTopic(String topicName, String message);
+    void publishToTopic(String topicName, String message);
 
-    PublishToIoTCoreResponse publishToIoTCore(String topicName, String message, String qos);
+    void publishToIoTCore(String topicName, String message, String qos);
 
     void subscribeToTopic(String topicName) throws IOException;
 
